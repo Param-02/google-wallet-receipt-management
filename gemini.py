@@ -27,17 +27,6 @@ EXPENSE_CATEGORIES = [
     "Education", "Maintenance", "Financial", "Others"
 ]
 
-# Load the parsed_receipt.json as the database
-try:
-    with open("parsed_receipt.json", "r", encoding="utf-8") as f:
-        RECEIPT_DATA = json.load(f)
-    if not isinstance(RECEIPT_DATA, list):
-        raise ValueError("parsed_receipt.json must contain a JSON array of receipts.")
-    logger.info(f"Loaded {len(RECEIPT_DATA)} receipts from parsed_receipt.json.")
-except Exception as e:
-    logger.error(f"Failed to load parsed_receipt.json: {e}")
-    RECEIPT_DATA = []
-
 # Pydantic models
 class ChatRequest(BaseModel):
     query: str
@@ -54,22 +43,48 @@ class ReceiptAnalysisService:
 
     def __init__(self):
         vertexai.init(
-            project=os.getenv("GOOGLE_CLOUD_PROJECT", "amplified-album-464909-m5"),
+            project=os.getenv("GOOGLE_CLOUD_PROJECT", "splendid-yeti-464913-j2"),
             location=os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
         )
         self.gemini = GenerativeModel("gemini-2.5-flash")
+        self.receipt_data = self._load_receipt_data()
+
+    def _load_receipt_data(self) -> List[Dict[str, Any]]:
+        """Load receipt data from pipeline_receipt.json"""
+        try:
+            with open("pipeline_receipt.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                raise ValueError("pipeline_receipt.json must contain a JSON array of receipts.")
+            logger.info(f"Loaded {len(data)} receipts from pipeline_receipt.json.")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to load pipeline_receipt.json: {e}")
+            return []
+
+    def reload_receipt_data(self):
+        """Reload receipt data from file"""
+        self.receipt_data = self._load_receipt_data()
+        return len(self.receipt_data)
 
     def _build_context(self) -> str:
-        """Builds context string from RECEIPT_DATA"""
-        if not RECEIPT_DATA:
+        """Builds context string from receipt data"""
+        if not self.receipt_data:
             return "No receipts found."
 
         summaries = []
-        for idx, receipt in enumerate(RECEIPT_DATA, start=1):
-            if "Summary" in receipt:
-                summaries.append(f"{idx}. {receipt['Summary']}")
-            else:
-                summaries.append(f"{idx}. {json.dumps(receipt)}")
+        for idx, receipt in enumerate(self.receipt_data, start=1):
+            # Include receipt category in context
+            store = receipt.get('store_name', 'Unknown Store')
+            category = receipt.get('receipt_category', 'Unknown Category')
+            total = receipt.get('total_amount', '0')
+            currency = receipt.get('currency', '')
+            date = receipt.get('date', 'Unknown Date')
+            
+            context_line = f"{idx}. {store} ({category}) - {currency}{total} on {date}"
+            if receipt.get('Summary'):
+                context_line += f" - {receipt['Summary']}"
+            summaries.append(context_line)
 
         return "\n".join(summaries)
 
@@ -77,38 +92,95 @@ class ReceiptAnalysisService:
         """
         Classify user query to determine relevant expense categories
         """
-        prompt = f"""You are an expense category classifier. Given a user query about expenses or receipts, determine which expense categories are relevant to answer the question.
+        prompt = f"""You are an expense category classifier. Analyze the user query and determine which specific expense categories are being asked about.
 
 Available Categories:
 {', '.join(EXPENSE_CATEGORIES)}
 
-Query: "{user_query}"
+User Query: "{user_query}"
 
-Respond only with a JSON array of category names.
-"""
+Instructions:
+- If the query mentions specific categories (like "groceries", "transportation", "food"), return those exact category names
+- If the query asks about "total spending" or "all expenses", return ALL relevant categories found in the data
+- If the query is about comparing categories, return the categories being compared
+- Only use "Others" if the query is truly about miscellaneous/unspecified expenses
+- Return categories that are actually relevant to answering the question
+
+Examples:
+- "transportation expenses" → ["Transportation"]
+- "grocery and food spending" → ["Groceries", "Food"] 
+- "total spend on groceries and transportation" → ["Transportation", "Groceries"]
+- "how much did I spend total" → (analyze data to find all relevant categories)
+
+Respond with ONLY a JSON array of category names from the available list above."""
+        
         try:
             response = self.gemini.generate_content(prompt)
             result = response.text.strip()
+            
+            # Clean the response text (remove any markdown formatting)
+            if result.startswith("```json"):
+                result = result[7:]
+            if result.endswith("```"):
+                result = result[:-3]
+            result = result.strip()
+            
             categories = json.loads(result)
             valid_categories = [cat for cat in categories if cat in EXPENSE_CATEGORIES]
-            return valid_categories if valid_categories else ["Others"]
+            
+            # If no valid categories found or empty, try to extract from receipt data
+            if not valid_categories:
+                # Analyze receipt data to find relevant categories
+                receipt_categories = set()
+                for receipt in self.receipt_data:
+                    if receipt.get('receipt_category'):
+                        receipt_categories.add(receipt['receipt_category'])
+                
+                # Check if query is asking about total/all spending
+                query_lower = user_query.lower()
+                if any(word in query_lower for word in ['total', 'all', 'spent', 'expenses']):
+                    valid_categories = list(receipt_categories) if receipt_categories else ["Others"]
+                else:
+                    valid_categories = ["Others"]
+            
+            return valid_categories
+            
         except Exception as e:
             logger.error(f"Category classification error: {e}")
-            return ["Others"]
+            # Fallback: try to extract categories from receipt data
+            receipt_categories = set()
+            for receipt in self.receipt_data:
+                if receipt.get('receipt_category'):
+                    receipt_categories.add(receipt['receipt_category'])
+            return list(receipt_categories) if receipt_categories else ["Others"]
 
     async def generate_answer(self, user_query: str, context: str) -> str:
         """
         Generate final answer using context and user query
         """
-        prompt = f"""You are an intelligent expense analysis assistant. You help users understand their spending patterns by analyzing their receipt data.
+        prompt = f"""You are a concise expense analysis assistant. Provide crisp, structured answers about spending patterns.
 
 Receipt Data:
 {context}
 
-User Question:
-{user_query}
+User Question: {user_query}
 
-Be conversational but precise, include details from the receipt(s), show calculations if needed, and say if data is insufficient."""
+Instructions:
+- Be brief and direct
+- Use bullet points or structured format
+- Show totals clearly (e.g., "Transportation: ₹2000.0")
+- For currency differences, note "Cannot combine (different currencies)"
+- Include key details but avoid lengthy explanations
+- Use emojis sparingly (💰 for totals, 📊 for summaries)
+
+Format examples:
+- Single category: "Transportation: ₹2000.0 (Fuel - July 3, 2025)"
+- Multiple categories: "Transportation: ₹2000.0 | Groceries: $25.97"
+- Total with same currency: "Total: $50.00"
+- Total with different currencies: "Total: Cannot combine - ₹2000.0 + $25.97 (different currencies)"
+
+Be concise and helpful."""
+
         try:
             response = self.gemini.generate_content(prompt)
             return response.text.strip()
@@ -128,7 +200,7 @@ Be conversational but precise, include details from the receipt(s), show calcula
             return {
                 "response": answer,
                 "categories_analyzed": relevant_categories,
-                "receipts_count": len(RECEIPT_DATA),
+                "receipts_count": len(self.receipt_data),
                 "timestamp": datetime.now().isoformat()
             }
 
@@ -156,6 +228,12 @@ async def chat_endpoint(request: ChatRequest):
     result = await analysis_service.process_chat_query(request.query)
     return ChatResponse(**result)
 
+@app.post("/reload")
+async def reload_receipts():
+    """Reload receipt data from file"""
+    count = analysis_service.reload_receipt_data()
+    return {"message": f"Reloaded {count} receipts", "timestamp": datetime.now().isoformat()}
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -165,6 +243,11 @@ async def health_check():
 async def get_categories():
     """Get available expense categories"""
     return {"categories": EXPENSE_CATEGORIES}
+
+@app.get("/receipts/count")
+async def get_receipts_count():
+    """Get current number of receipts"""
+    return {"count": len(analysis_service.receipt_data), "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
     import uvicorn

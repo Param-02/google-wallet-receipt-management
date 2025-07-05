@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "splendid-yeti-464913-j2",
+  "private_key_id": "83b56574050233f7037bdb88eee570d629cdf628",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC53KCJvclcUqMo\nqrddGEb8FMWRBoIMWTbLR38whS10i/PPQqIb9X521lAxzwVcfNeUEiPi1iGF2KSH\nF12NKOx3bDvEWqSu+2EONsCWZHv2UX9RQZClDE0rXM+LVJowiloUAB/m4AeAvm6l\nOgel8CWN5dvS1/EdLV4Ua5C+fH/iYmtgMsdsyxIbUL7HCkYWdr0wBhOf0Vrk0pgn\nJXO9g04k7SdC99DeVNYzqdrC1jTwFTdMtTa0SUYjUtbLKoGbSWw+cDAr98hE9n8z\nscik9WQWmDqBc5QH7H4qLs+dAi1hRFKUZGUF+jwRWQW2hMjWMNSglUwhpJePR7Xu\nO7N3hZCNAgMBAAECggEADrPTdjnvYxB9bCLfCOv594hsHX4KjRAEm91+w/eRAjJs\n+bT/bl9D3wIyi1IhTjDo+8NYl+HQ+o3J7A7O3XMCi6rh6nUyKE5l3dI6d1shDDnj\nrKmXV9sKgrbfixnI7bSQDht5apHHvikyRvs5bii6S8iGVF41KlXzpoFgzJS8KAv2\n+YnlOYfMxJIZKf1Sk93RFl+WoFMb6I/xFn4MaYixj/lpRIk0w6IRrTbURrX9NoPx\n59ukG39LgjBtmrXfnslDtt4O6ppqCQCMIB8IhPsy5TXazCEerhyfrG/3DxsoVaoQ\nrMHAti65fOBKsdC8EittG1wtDYiArAJLKKaG19+X8QKBgQDnHaepF+jzN8Jcyrli\niXcXd5zJMJRVfKeY99SRDSLDkVh4/mY1QZ6VvgUGE0S7t3LL06sc5Ry5JYlOSSqa\nXgs/KvF3+8LpLe0gZW1PE922PpQRmvnJYtbwl9vr45weVYPr4OL1TVXHa1Rt0NSD\nA8jLV+gdos6JwKNTnVCVZKrvEQKBgQDN353ImT/HydLDT1Zau7SN8lm2FoPVVssh\nPF7NmXjFG8w4vslRmVZtIn/blbE0Quj8+1CXy97QP4cmzU5EEP3PDKrD29k9SX/N\nghQASbb8cw7jI5aHKuPQG8qy4jA/3f5IXaMEP4cnAVuV7db+Ft9TU/IobHbDsvdV\nsJiUHCQBvQKBgQDI10Rz9YtCkRoeeS1RLBSKGC/vxn+hKoqarAPVaYzkVtKDktBP\nR48AofjLpsL8PhdMec0hdxjW7H+9wGd9bmxnoHHmyqo+6OJAXOP47FKnpQoXoo2f\nLH2M5ur+uvVYhwf1W6Dfey0n92WPaQLEN+2uh932oxzJKNbGOtdke+7vgQKBgAXf\nA7Pt0ujSs6UIRTEvOzX1HGPZ/oZ+BCr9esKoRs5wPYG8xycBlXplSnorqbMQ2W4l\niKXblY4g0azkm//K8EIQXWpagbaCuxdUR1e+wm4updUKdceDDJ4pvL0fQDsCDLdp\nnDWJzkPpgQAkmUYDxvisYzKN7VElcHJMJ/3JU6mNAoGBALWf1RUpgBE+uAmgshwh\nND9KfqyC/TTN2ilLyvMC64JbB/uma4de+KfmXa0e0KdUdikZUSnn/uJpq3JDvPa+\niSoemJEDPm9O/83182XSobp4xdRnCmC/jZY3MdiAmRjmEW0SaPkTlodCzdP84ChY\ntLod0NMuAn8sE8HXf6cQSGtM\n-----END PRIVATE KEY-----\n",
+  "client_email": "my-ai-parser@splendid-yeti-464913-j2.iam.gserviceaccount.com",
+  "client_id": "115348434349504526523",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/my-ai-parser%40splendid-yeti-464913-j2.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

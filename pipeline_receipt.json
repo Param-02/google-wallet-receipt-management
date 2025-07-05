@@ -1,0 +1,144 @@
+[
+  {
+    "store_name":"Bhargavi Auto Services / Hindustan Petroleum",
+    "store_address":"Delhi",
+    "store_phone":null,
+    "date":"2025-07-03",
+    "time":"12:57",
+    "bill_number":"002524",
+    "receipt_category":"Transportation",
+    "Summary":"This is a fuel receipt from Bhargavi Auto Services, a Hindustan Petroleum dealer in Delhi. It details a purchase of 22.8 liters of Diesel for ₹2000.00 at a unit price of ₹87.71 per liter. The transaction occurred on July 3, 2025, at 12:57 PM and was paid via Mastercard. The receipt is a customer copy, noting that the PIN was verified and no signature was required, with a total sale amount matching the net amount.",
+    "payment_method":"Card (Mastercard)",
+    "currency":"₹",
+    "subtotal_amount":null,
+    "tax_amount":null,
+    "tip_amount":null,
+    "total_amount":2000.0,
+    "items":[
+      {
+        "item_name":"Diesel",
+        "quantity":22.8,
+        "unit_price":87.71,
+        "total_price":2000.0,
+        "category":"Transportation"
+      }
+    ],
+    "tax_breakdown":[],
+    "footer_notes":"PIN VERIFIED OK SIGNATURE NOT REQUIRED. I AGREE TO PAY AS PER CARD ISSUER AGREEMENT. Choose e-receipts to save paper and protect the environment! CUSTOMER COPY. 1.0.0.120 BillerApp-1.0.27 fiserv.",
+    "processed_at":"2025-07-04T21:23:22.153217",
+    "source_image":"33.jpg"
+  },
+  {
+    "store_name":"The Shop",
+    "store_address":"Store #100 Chicago, IL",
+    "store_phone":null,
+    "date":null,
+    "time":null,
+    "bill_number":null,
+    "receipt_category":"Groceries",
+    "Summary":"This receipt is from \"The Shop\" in Chicago, IL. It details a grocery purchase totaling $25.97. Items include various food products like eggs, milk, cheese, yogurt, tomatoes, bananas, aubergine, crackers, cookies, canned tuna, and chicken breast, along with household essentials such as toilet paper and baby wipes.",
+    "payment_method":null,
+    "currency":"$",
+    "subtotal_amount":"25.97",
+    "tax_amount":null,
+    "tip_amount":null,
+    "total_amount":"25.97",
+    "items":[
+      {
+        "item_name":"Large Eggs",
+        "quantity":1,
+        "unit_price":"0.99",
+        "total_price":"0.99",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Milk",
+        "quantity":1,
+        "unit_price":"1.15",
+        "total_price":"1.15",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Cottage Cheese",
+        "quantity":1,
+        "unit_price":"0.59",
+        "total_price":"0.59",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Natural Yogurt",
+        "quantity":1,
+        "unit_price":"0.70",
+        "total_price":"0.70",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Cherry Tomatoes",
+        "quantity":1,
+        "unit_price":"1.29",
+        "total_price":"1.29",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Bananas",
+        "quantity":1,
+        "unit_price":"0.77",
+        "total_price":"0.77",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Aubergine",
+        "quantity":1,
+        "unit_price":"1.50",
+        "total_price":"1.50",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Cheese Crackers",
+        "quantity":1,
+        "unit_price":"2.19",
+        "total_price":"2.19",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Chocolate Cookies",
+        "quantity":1,
+        "unit_price":"1.82",
+        "total_price":"1.82",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Canned Tuna 12pk",
+        "quantity":1,
+        "unit_price":"5.95",
+        "total_price":"5.95",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Chicken Breast",
+        "quantity":1,
+        "unit_price":"2.46",
+        "total_price":"2.46",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Toilet Paper",
+        "quantity":1,
+        "unit_price":"4.98",
+        "total_price":"4.98",
+        "category":"Groceries"
+      },
+      {
+        "item_name":"Baby wipes",
+        "quantity":1,
+        "unit_price":"1.59",
+        "total_price":"1.59",
+        "category":"Groceries"
+      }
+    ],
+    "tax_breakdown":[],
+    "footer_notes":null,
+    "processed_at":"2025-07-04T21:23:48.198979",
+    "source_image":"samplebill.jpg"
+  }
+]

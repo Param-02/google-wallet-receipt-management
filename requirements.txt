@@ -11,33 +11,15 @@ pytesseract>=0.3.10
 easyocr>=1.7.0
 
 # Google Cloud AI Services
-google-cloud-aiplatform>=1.38.0
-google-generativeai>=0.3.0
+google-cloud-aiplatform==1.101.0
+google-generativeai==0.8.5
 
 # Web framework for chatbot
-fastapi>=0.104.0
+fastapi==0.115.1
 uvicorn>=0.24.0
-pydantic>=2.4.0
+pydantic==2.11.1
 
 # Additional dependencies
 requests>=2.31.0
-pathlib2>=2.3.7
-argparse>=1.4.0
-logging>=0.4.9.6
-datetime>=5.3
 json5>=0.9.14
-os-sys>=2.1.4
-# sys-platform>=1.2.0
 typing-extensions>=4.8.0
-pathlib>=1.0.1
-subprocess32>=3.5.4
-
-# Additional utilities (these are already included with the above packages)
-# pathlib - built-in Python library
-# typing - built-in Python library
-# json - built-in Python library
-# logging - built-in Python library
-# sys - built-in Python library
-# os - built-in Python library
-# argparse - built-in Python library
-# base64 - built-in Python library 

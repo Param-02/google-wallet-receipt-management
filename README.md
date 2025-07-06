@@ -7,7 +7,7 @@ An intelligent receipt processing system that extracts structured data from rece
 - **📸 Image Processing**: Converts receipt images to clean PDFs
 - **🤖 AI-Powered Extraction**: Uses Google Vertex AI Gemini to extract structured data
 - **📂 Smart Categorization**: Categorizes both receipts and individual items
-- **💾 Data Accumulation**: Stores all receipts in a single JSON file
+- **💾 Data Accumulation**: Stores all receipts in Firebase Firestore
 - **🤖 Chatbot Interface**: Ask questions about your receipts in natural language
 - **🌐 REST API**: FastAPI-based backend for integration
 - **🛠️ Pipeline Orchestration**: Seamless workflow management
@@ -15,8 +15,8 @@ An intelligent receipt processing system that extracts structured data from rece
 ## 📋 System Architecture
 
 ```
-📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 📄 JSON Storage → 💬 Chatbot
-     (main2.py)      (receipt_pipeline.py)   (ai.py)     (pipeline_receipt.json)  (gemini.py)
+📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 🔥 Firestore Storage → 💬 Chatbot
+     (main2.py)      (receipt_pipeline.py)   (ai.py)     (Firestore)  (gemini.py)
 ```
 
 ## 🛠️ Installation
@@ -130,7 +130,7 @@ curl -X POST http://localhost:8000/reload
 ├── 🚀 process_receipt.sh          # Convenience script
 ├── 📋 requirements.txt            # Dependencies
 ├── 🔑 splendid-yeti-464913-j2...json  # Google Cloud credentials
-└── 📄 pipeline_receipt.json      # Accumulated receipt data
+└── 🔥 Firestore collection      # Accumulated receipt data
 ```
 
 ### Sample Data

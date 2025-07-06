@@ -1,5 +1,5 @@
 """
-Receipt Chatbot Backend - FastAPI Implementation (Gemini + Local JSON)
+Receipt Chatbot Backend - FastAPI Implementation (Gemini + Firebase)
 """
 
 from fastapi import FastAPI, HTTPException
@@ -12,6 +12,8 @@ import os
 from google.cloud import aiplatform
 import vertexai
 from vertexai.generative_models import GenerativeModel
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,23 +49,34 @@ class ReceiptAnalysisService:
             location=os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
         )
         self.gemini = GenerativeModel("gemini-2.5-flash")
+        self.db = self._init_firestore()
         self.receipt_data = self._load_receipt_data()
 
-    def _load_receipt_data(self) -> List[Dict[str, Any]]:
-        """Load receipt data from pipeline_receipt.json"""
+    def _init_firestore(self):
+        """Initialize Firebase and return Firestore client."""
         try:
-            with open("pipeline_receipt.json", "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, list):
-                raise ValueError("pipeline_receipt.json must contain a JSON array of receipts.")
-            logger.info(f"Loaded {len(data)} receipts from pipeline_receipt.json.")
+            if not firebase_admin._apps:
+                cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            return firestore.client()
+        except Exception as e:
+            logger.error(f"Failed to initialize Firestore: {e}")
+            raise
+
+    def _load_receipt_data(self) -> List[Dict[str, Any]]:
+        """Load receipt data from Firestore."""
+        try:
+            docs = list(self.db.collection("receipts").stream())
+            data = [doc.to_dict() for doc in docs]
+            logger.info(f"Loaded {len(data)} receipts from Firestore.")
             return data
         except Exception as e:
-            logger.error(f"Failed to load pipeline_receipt.json: {e}")
+            logger.error(f"Failed to load receipts from Firestore: {e}")
             return []
 
     def reload_receipt_data(self):
-        """Reload receipt data from file"""
+        """Reload receipt data from Firestore."""
         self.receipt_data = self._load_receipt_data()
         return len(self.receipt_data)
 
@@ -230,7 +243,7 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.post("/reload")
 async def reload_receipts():
-    """Reload receipt data from file"""
+    """Reload receipt data from Firestore"""
     count = analysis_service.reload_receipt_data()
     return {"message": f"Reloaded {count} receipts", "timestamp": datetime.now().isoformat()}
 

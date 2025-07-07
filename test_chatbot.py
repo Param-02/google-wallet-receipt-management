@@ -12,6 +12,32 @@ from typing import Dict, Any
 class ReceiptChatbotTester:
     def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
+        self.token = None
+
+    def login(self, username: str = "admin", password: str = "password") -> bool:
+        """Obtain auth token from the API"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/login",
+                json={"username": username, "password": password},
+            )
+            if response.status_code == 200:
+                self.token = response.json().get("token")
+                return True
+            return False
+        except Exception:
+            return False
+
+    def register(self, username: str, password: str) -> bool:
+        """Register a new user"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/register",
+                json={"username": username, "password": password},
+            )
+            return response.status_code == 200
+        except Exception:
+            return False
         
     def test_connection(self) -> bool:
         """Test if the chatbot API is running"""
@@ -24,9 +50,13 @@ class ReceiptChatbotTester:
     def ask_question(self, query: str) -> Dict[str, Any]:
         """Ask a question to the chatbot"""
         try:
+            headers = {}
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
             response = requests.post(
                 f"{self.base_url}/chat",
-                json={"query": query}
+                json={"query": query},
+                headers=headers,
             )
             return response.json()
         except Exception as e:
@@ -35,7 +65,10 @@ class ReceiptChatbotTester:
     def get_receipts_count(self) -> Dict[str, Any]:
         """Get current number of receipts"""
         try:
-            response = requests.get(f"{self.base_url}/receipts/count")
+            headers = {}
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
+            response = requests.get(f"{self.base_url}/receipts/count", headers=headers)
             return response.json()
         except Exception as e:
             return {"error": str(e)}
@@ -66,16 +99,22 @@ def main():
     print("=" * 60)
     
     tester = ReceiptChatbotTester()
-    
+
     # Test connection
     print("\n🔌 Testing connection...")
     if not tester.test_connection():
         print("❌ Chatbot API is not running!")
         print("Please start the chatbot with: python3 gemini.py")
         return
-    
+
     print("✅ Connected to chatbot API")
-    
+
+    # Ensure user exists then login for auth token
+    tester.register("admin", "password")
+    if not tester.login():
+        print("❌ Login failed - check credentials")
+        return
+
     # Get receipts count
     count_result = tester.get_receipts_count()
     print(f"📊 Current receipts loaded: {count_result.get('count', 0)}")

@@ -7,7 +7,7 @@ An intelligent receipt processing system that extracts structured data from rece
 - **📸 Image Processing**: Converts receipt images to clean PDFs
 - **🤖 AI-Powered Extraction**: Uses Google Vertex AI Gemini to extract structured data
 - **📂 Smart Categorization**: Categorizes both receipts and individual items
-- **💾 Data Accumulation**: Stores all receipts in a single JSON file
+- **💾 Data Accumulation**: Stores all receipts in Firebase Firestore
 - **🤖 Chatbot Interface**: Ask questions about your receipts in natural language
 - **🌐 REST API**: FastAPI-based backend for integration
 - **🛠️ Pipeline Orchestration**: Seamless workflow management
@@ -15,8 +15,41 @@ An intelligent receipt processing system that extracts structured data from rece
 ## 📋 System Architecture
 
 ```
-📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 📄 JSON Storage → 💬 Chatbot
-     (main2.py)      (receipt_pipeline.py)   (ai.py)     (pipeline_receipt.json)  (gemini.py)
+📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 🔥 Firestore Storage → 💬 Chatbot
+     (main2.py)      (receipt_pipeline.py)   (ai.py)     (Firestore)  (gemini.py)
+```
+
+## 🔥 Firebase / Firestore Integration
+
+Firebase's Firestore is the central database for all parsed receipts.
+
+1. **`receipt_pipeline.py`** stores each parsed receipt as a document in the `receipts` collection.
+2. **`gemini.py`** reads from this collection to build context for the LLM and to list receipts.
+3. Documents follow the schema outlined in the [Data Format](#-data-format) section.
+
+Data flow overview:
+
+```text
+ReceiptPipeline → Firestore ← Gemini Chatbot
+```
+
+### Firestore Structure
+
+```text
+Firestore
+└── receipts (collection)
+    ├── <document-id>
+    │   ├── store_name: string
+    │   ├── store_address: string
+    │   ├── date: YYYY-MM-DD
+    │   ├── time: HH:MM
+    │   ├── receipt_category: string
+    │   ├── total_amount: string
+    │   ├── currency: string
+    │   ├── items: [ ... ]
+    │   ├── processed_at: timestamp
+    │   └── source_image: string
+    └── ...
 ```
 
 ## 🛠️ Installation
@@ -105,8 +138,14 @@ With the chatbot running on `http://localhost:8000`:
 # Health check
 curl http://localhost:8000/health
 
+# Login to obtain a token
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password"}'
+
 # Ask a question
 curl -X POST http://localhost:8000/chat \
+  -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"query": "How much did I spend on groceries?"}'
 
@@ -130,7 +169,7 @@ curl -X POST http://localhost:8000/reload
 ├── 🚀 process_receipt.sh          # Convenience script
 ├── 📋 requirements.txt            # Dependencies
 ├── 🔑 splendid-yeti-464913-j2...json  # Google Cloud credentials
-└── 📄 pipeline_receipt.json      # Accumulated receipt data
+└── 🔥 Firestore collection      # Accumulated receipt data
 ```
 
 ### Sample Data

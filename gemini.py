@@ -52,6 +52,36 @@ class ReceiptAnalysisService:
         self.db = self._init_firestore()
         self.receipt_data = self._load_receipt_data()
 
+    def list_receipts(self) -> str:
+        """Return a human readable list of all receipts."""
+        if not self.receipt_data:
+            return "No receipts found."
+
+        lines = []
+        for r in self.receipt_data:
+            store = r.get("store_name", "Unknown")
+            category = r.get("receipt_category", "Unknown")
+            total = r.get("total_amount", 0)
+            currency = r.get("currency", "")
+            date = r.get("date", "Unknown")
+            lines.append(f"* {category}: {currency}{total} ({store} - {date})")
+
+        # Calculate total per currency
+        totals = {}
+        for r in self.receipt_data:
+            currency = r.get("currency", "")
+            try:
+                amount = float(r.get("total_amount", 0))
+            except (ValueError, TypeError):
+                amount = 0
+            totals[currency] = totals.get(currency, 0) + amount
+
+        total_str = " + ".join(
+            f"{cur}{amt}" for cur, amt in totals.items()
+        )
+
+        return "\n".join(lines) + f"\n\n📊 **Total:** {total_str} 💰"
+
     def _init_firestore(self):
         """Initialize Firebase and return Firestore client."""
         try:
@@ -206,6 +236,18 @@ Be concise and helpful."""
         Main method to process chat query through the full pipeline
         """
         try:
+            query_lower = query.lower()
+
+            # If the user is requesting a list of receipts, handle locally
+            if "receipt" in query_lower and any(k in query_lower for k in ["all", "list", "show"]):
+                summary = self.list_receipts()
+                return {
+                    "response": summary,
+                    "categories_analyzed": [r.get("receipt_category", "Unknown") for r in self.receipt_data],
+                    "receipts_count": len(self.receipt_data),
+                    "timestamp": datetime.now().isoformat(),
+                }
+
             relevant_categories = await self.classify_categories(query)
             context = self._build_context()
             answer = await self.generate_answer(query, context)

@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 import os
 import uuid
+import hashlib
 from google.cloud import aiplatform
 import vertexai
 from vertexai.generative_models import GenerativeModel
@@ -314,6 +315,19 @@ Be concise and helpful."""
 analysis_service = ReceiptAnalysisService()
 
 
+def _hash_password(password: str, salt: Optional[str] = None) -> tuple[str, str]:
+    """Return a salted SHA-256 hash and the salt."""
+    if salt is None:
+        salt = uuid.uuid4().hex
+    hashed = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode(),
+        salt.encode(),
+        100000,
+    ).hex()
+    return hashed, salt
+
+
 def _user_doc(username: str):
     """Return Firestore document reference for a user."""
     return analysis_service.db.collection("users").document(username)
@@ -326,8 +340,12 @@ async def register(request: RegisterRequest):
     doc = doc_ref.get()
     if doc.exists and doc.to_dict().get("password"):
         raise HTTPException(status_code=400, detail="User already exists")
-    try:
-        doc_ref.set({"password": request.password, "created_at": datetime.now().isoformat()})
+        pwd_hash, salt = _hash_password(request.password)
+        doc_ref.set({
+            "password": pwd_hash,
+            "salt": salt,
+            "created_at": datetime.now().isoformat(),
+        })
         return {"message": "User registered"}
     except Exception as e:
         logger.error(f"Failed to register user {request.username}: {e}")
@@ -341,7 +359,12 @@ async def login(request: LoginRequest):
     if not doc.exists:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     data = doc.to_dict()
-    if data.get("password") != request.password:
+    stored_hash = data.get("password")
+    salt = data.get("salt")
+    if not stored_hash or not salt:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    pwd_hash, _ = _hash_password(request.password, salt)
+    if stored_hash != pwd_hash:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = str(uuid.uuid4())

@@ -25,7 +25,7 @@ An intelligent receipt processing system that extracts structured data from rece
 Firebase's Firestore is the central database for all parsed receipts.
 
 1. **`receipt_pipeline.py`** stores each parsed receipt under the user's collection (`users/<user_id>/receipts`).
-2. **User accounts** are stored in the same `users` collection with a password and creation timestamp.
+2. **User accounts** are stored in the same `users` collection with a salted password hash and creation timestamp.
 3. **`gemini.py`** reads from the current user's subcollection to build context for the LLM and to list receipts.
 4. Documents follow the schema outlined in the [Data Format](#-data-format) section.
 
@@ -41,7 +41,8 @@ ReceiptPipeline → Firestore ← Gemini Chatbot
 Firestore
 └── users (collection)
     └── <user_id> (document)
-        ├── password: string
+        ├── password: <hash>
+        ├── salt: <random>
         ├── created_at: timestamp
         └── receipts (collection)
             ├── <document-id>

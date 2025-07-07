@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 
 class ReceiptPipeline:
     """Pipeline that combines main2.py and ai.py for complete receipt processing."""
-    
-    def __init__(self):
-        """Initialize the pipeline and Firestore."""
+
+    def __init__(self, user_id: str = "default_user"):
+        """Initialize the pipeline and Firestore for a given user."""
+        self.user_id = user_id
         self.check_dependencies()
         self.db = self._init_firestore()
 
@@ -166,10 +167,16 @@ class ReceiptPipeline:
                 new_result['processed_at'] = datetime.datetime.now().isoformat()
                 new_result['source_image'] = input_image
                 
-                # Store result in Firestore instead of a JSON file
-                doc_ref = self.db.collection("receipts").add(new_result)
+                # Store result in Firestore under the user's collection
+                collection = (
+                    self.db.collection("users")
+                    .document(self.user_id)
+                    .collection("receipts")
+                )
+                doc_ref = collection.add(new_result)
                 logger.info(
-                    f"✅ Pipeline completed successfully! Stored in Firestore with ID: {doc_ref[1].id}"
+                    "✅ Pipeline completed successfully! Stored in Firestore "
+                    f"for user {self.user_id} with ID: {doc_ref[1].id}"
                 )
                 
                 # Clean up temporary files
@@ -253,7 +260,12 @@ class ReceiptPipeline:
     def print_all_results(self):
         """Print all results stored in Firestore."""
         try:
-            docs = list(self.db.collection("receipts").stream())
+            collection = (
+                self.db.collection("users")
+                .document(self.user_id)
+                .collection("receipts")
+            )
+            docs = list(collection.stream())
             if not docs:
                 print("❌ No receipts found in Firestore")
                 return
@@ -291,6 +303,7 @@ def main():
     """Main function."""
     parser = argparse.ArgumentParser(description='Receipt Processing Pipeline')
     parser.add_argument('--input', help='Input image path')
+    parser.add_argument('--user-id', default='default_user', help='User ID for Firestore storage')
     parser.add_argument('--output', default='pipeline_receipt.json', help='(deprecated) Output JSON path')
     parser.add_argument('--keep-pdf', action='store_true', help='Keep temporary PDF file')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
@@ -299,7 +312,7 @@ def main():
     args = parser.parse_args()
     
     # Initialize pipeline
-    pipeline = ReceiptPipeline()
+    pipeline = ReceiptPipeline(user_id=args.user_id)
     
     # Show all results if requested
     if args.show_all:

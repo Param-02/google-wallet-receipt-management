@@ -7,7 +7,7 @@ An intelligent receipt processing system that extracts structured data from rece
 - **📸 Image Processing**: Converts receipt images to clean PDFs
 - **🤖 AI-Powered Extraction**: Uses Google Vertex AI Gemini to extract structured data
 - **📂 Smart Categorization**: Categorizes both receipts and individual items
-- **💾 Data Accumulation**: Stores all receipts in Firebase Firestore
+- **💾 Data Accumulation**: Stores each user's receipts in their own Firestore subcollection
 - **🤖 Chatbot Interface**: Ask questions about your receipts in natural language
 - **🌐 REST API**: FastAPI-based backend for integration
 - **🛠️ Pipeline Orchestration**: Seamless workflow management
@@ -17,15 +17,14 @@ An intelligent receipt processing system that extracts structured data from rece
 ```
 📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 🔥 Firestore Storage → 💬 Chatbot
      (main2.py)      (receipt_pipeline.py)   (ai.py)     (Firestore)  (gemini.py)
-
 ```
 
 ## 🔥 Firebase / Firestore Integration
 
 Firebase's Firestore is the central database for all parsed receipts.
 
-1. **`receipt_pipeline.py`** stores each parsed receipt as a document in the `receipts` collection.
-2. **`gemini.py`** reads from this collection to build context for the LLM and to list receipts.
+1. **`receipt_pipeline.py`** stores each parsed receipt under the user's collection (`users/<user_id>/receipts`).
+2. **`gemini.py`** reads from the current user's subcollection to build context for the LLM and to list receipts.
 3. Documents follow the schema outlined in the [Data Format](#-data-format) section.
 
 Data flow overview:
@@ -38,20 +37,21 @@ ReceiptPipeline → Firestore ← Gemini Chatbot
 
 ```text
 Firestore
-└── receipts (collection)
-    ├── <document-id>
-    │   ├── store_name: string
-    │   ├── store_address: string
-    │   ├── date: YYYY-MM-DD
-    │   ├── time: HH:MM
-    │   ├── receipt_category: string
-    │   ├── total_amount: string
-    │   ├── currency: string
-    │   ├── items: [ ... ]
-    │   ├── processed_at: timestamp
-    │   └── source_image: string
-    └── ...
-
+└── users (collection)
+    └── <user_id> (document)
+        └── receipts (collection)
+            ├── <document-id>
+            │   ├── store_name: string
+            │   ├── store_address: string
+            │   ├── date: YYYY-MM-DD
+            │   ├── time: HH:MM
+            │   ├── receipt_category: string
+            │   ├── total_amount: string
+            │   ├── currency: string
+            │   ├── items: [ ... ]
+            │   ├── processed_at: timestamp
+            │   └── source_image: string
+            └── ...
 ```
 
 ## 🛠️ Installation
@@ -101,11 +101,11 @@ Firestore
 
 **Using Python directly:**
 ```bash
-# Process receipt
-python3 receipt_pipeline.py --input 33.jpg
+# Process receipt for a specific user
+python3 receipt_pipeline.py --input 33.jpg --user-id alice
 
-# View all receipts
-python3 receipt_pipeline.py --show-all
+# View all receipts for that user
+python3 receipt_pipeline.py --show-all --user-id alice
 ```
 
 ### 2. Start the Chatbot
@@ -140,7 +140,7 @@ With the chatbot running on `http://localhost:8000`:
 # Health check
 curl http://localhost:8000/health
 
-# Login to obtain a token
+# Login to obtain a token (token is tied to your user ID)
 curl -X POST http://localhost:8000/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "password"}'

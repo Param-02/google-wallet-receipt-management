@@ -64,15 +64,16 @@ class ReceiptAnalysisService:
         )
         self.gemini = GenerativeModel("gemini-2.5-flash")
         self.db = self._init_firestore()
-        self.receipt_data = self._load_receipt_data()
+        self.receipt_data_cache: Dict[str, List[Dict[str, Any]]] = {}
 
-    def list_receipts(self) -> str:
-        """Return a human readable list of all receipts."""
-        if not self.receipt_data:
+    def list_receipts(self, user_id: str) -> str:
+        """Return a human readable list of all receipts for the user."""
+        data = self._get_receipt_data(user_id)
+        if not data:
             return "No receipts found."
 
         lines = []
-        for r in self.receipt_data:
+        for r in data:
             store = r.get("store_name", "Unknown")
             category = r.get("receipt_category", "Unknown")
             total = r.get("total_amount", 0)
@@ -82,7 +83,7 @@ class ReceiptAnalysisService:
 
         # Calculate total per currency
         totals = {}
-        for r in self.receipt_data:
+        for r in data:
             currency = r.get("currency", "")
             try:
                 amount = float(r.get("total_amount", 0))
@@ -96,7 +97,6 @@ class ReceiptAnalysisService:
 
         return "\n".join(lines) + f"\n\n📊 **Total:** {total_str} 💰"
 
-
     def _init_firestore(self):
         """Initialize Firebase and return Firestore client."""
         try:
@@ -109,29 +109,44 @@ class ReceiptAnalysisService:
             logger.error(f"Failed to initialize Firestore: {e}")
             raise
 
-    def _load_receipt_data(self) -> List[Dict[str, Any]]:
-        """Load receipt data from Firestore."""
+    def _load_receipt_data(self, user_id: str) -> List[Dict[str, Any]]:
+        """Load receipt data for a specific user from Firestore."""
         try:
-            docs = list(self.db.collection("receipts").stream())
+            collection = (
+                self.db.collection("users")
+                .document(user_id)
+                .collection("receipts")
+            )
+            docs = list(collection.stream())
             data = [doc.to_dict() for doc in docs]
-            logger.info(f"Loaded {len(data)} receipts from Firestore.")
+            logger.info(
+                f"Loaded {len(data)} receipts from Firestore for user {user_id}."
+            )
             return data
         except Exception as e:
-            logger.error(f"Failed to load receipts from Firestore: {e}")
+            logger.error(f"Failed to load receipts for {user_id}: {e}")
             return []
 
-    def reload_receipt_data(self):
-        """Reload receipt data from Firestore."""
-        self.receipt_data = self._load_receipt_data()
-        return len(self.receipt_data)
+    def reload_receipt_data(self, user_id: str) -> int:
+        """Reload receipt data from Firestore for the given user."""
+        data = self._load_receipt_data(user_id)
+        self.receipt_data_cache[user_id] = data
+        return len(data)
 
-    def _build_context(self) -> str:
+    def _get_receipt_data(self, user_id: str) -> List[Dict[str, Any]]:
+        """Retrieve cached receipt data for a user, loading if necessary."""
+        if user_id not in self.receipt_data_cache:
+            self.receipt_data_cache[user_id] = self._load_receipt_data(user_id)
+        return self.receipt_data_cache[user_id]
+
+    def _build_context(self, user_id: str) -> str:
         """Builds context string from receipt data"""
-        if not self.receipt_data:
+        data = self._get_receipt_data(user_id)
+        if not data:
             return "No receipts found."
 
         summaries = []
-        for idx, receipt in enumerate(self.receipt_data, start=1):
+        for idx, receipt in enumerate(data, start=1):
             # Include receipt category in context
             store = receipt.get('store_name', 'Unknown Store')
             category = receipt.get('receipt_category', 'Unknown Category')
@@ -146,7 +161,7 @@ class ReceiptAnalysisService:
 
         return "\n".join(summaries)
 
-    async def classify_categories(self, user_query: str) -> List[str]:
+    async def classify_categories(self, user_query: str, user_id: str) -> List[str]:
         """
         Classify user query to determine relevant expense categories
         """
@@ -190,7 +205,7 @@ Respond with ONLY a JSON array of category names from the available list above."
             if not valid_categories:
                 # Analyze receipt data to find relevant categories
                 receipt_categories = set()
-                for receipt in self.receipt_data:
+                for receipt in self._get_receipt_data(user_id):
                     if receipt.get('receipt_category'):
                         receipt_categories.add(receipt['receipt_category'])
                 
@@ -207,7 +222,7 @@ Respond with ONLY a JSON array of category names from the available list above."
             logger.error(f"Category classification error: {e}")
             # Fallback: try to extract categories from receipt data
             receipt_categories = set()
-            for receipt in self.receipt_data:
+            for receipt in self._get_receipt_data(user_id):
                 if receipt.get('receipt_category'):
                     receipt_categories.add(receipt['receipt_category'])
             return list(receipt_categories) if receipt_categories else ["Others"]
@@ -246,7 +261,7 @@ Be concise and helpful."""
             logger.error(f"Answer generation error: {e}")
             return "I encountered an error while analyzing your receipts. Please try again."
 
-    async def process_chat_query(self, query: str) -> Dict[str, Any]:
+    async def process_chat_query(self, query: str, user_id: str) -> Dict[str, Any]:
         """
         Main method to process chat query through the full pipeline
         """
@@ -255,22 +270,25 @@ Be concise and helpful."""
 
             # If the user is requesting a list of receipts, handle locally
             if "receipt" in query_lower and any(k in query_lower for k in ["all", "list", "show"]):
-                summary = self.list_receipts()
+                summary = self.list_receipts(user_id)
                 return {
                     "response": summary,
-                    "categories_analyzed": [r.get("receipt_category", "Unknown") for r in self.receipt_data],
-                    "receipts_count": len(self.receipt_data),
+                    "categories_analyzed": [
+                        r.get("receipt_category", "Unknown")
+                        for r in self._get_receipt_data(user_id)
+                    ],
+                    "receipts_count": len(self._get_receipt_data(user_id)),
                     "timestamp": datetime.now().isoformat(),
                 }
 
-            relevant_categories = await self.classify_categories(query)
-            context = self._build_context()
+            relevant_categories = await self.classify_categories(query, user_id)
+            context = self._build_context(user_id)
             answer = await self.generate_answer(query, context)
 
             return {
                 "response": answer,
                 "categories_analyzed": relevant_categories,
-                "receipts_count": len(self.receipt_data),
+                "receipts_count": len(self._get_receipt_data(user_id)),
                 "timestamp": datetime.now().isoformat()
             }
 
@@ -310,15 +328,23 @@ async def chat_endpoint(
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
+    user_id = TOKENS[token]
+
     logger.info(
-        f"Processing chat query for {TOKENS[token]}: {request.query}")
-    result = await analysis_service.process_chat_query(request.query)
+        f"Processing chat query for {user_id}: {request.query}")
+    result = await analysis_service.process_chat_query(request.query, user_id)
     return ChatResponse(**result)
 
 @app.post("/reload")
-async def reload_receipts():
-    """Reload receipt data from Firestore"""
-    count = analysis_service.reload_receipt_data()
+async def reload_receipts(
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+):
+    """Reload receipt data from Firestore for the authenticated user"""
+    token = credentials.credentials
+    if token not in TOKENS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user_id = TOKENS[token]
+    count = analysis_service.reload_receipt_data(user_id)
     return {"message": f"Reloaded {count} receipts", "timestamp": datetime.now().isoformat()}
 
 @app.get("/health")
@@ -332,9 +358,14 @@ async def get_categories():
     return {"categories": EXPENSE_CATEGORIES}
 
 @app.get("/receipts/count")
-async def get_receipts_count():
-    """Get current number of receipts"""
-    return {"count": len(analysis_service.receipt_data), "timestamp": datetime.now().isoformat()}
+async def get_receipts_count(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)):
+    """Get current number of receipts for the authenticated user"""
+    token = credentials.credentials
+    if token not in TOKENS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user_id = TOKENS[token]
+    count = len(analysis_service._get_receipt_data(user_id))
+    return {"count": count, "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
     import uvicorn

@@ -54,7 +54,10 @@ class ReceiptChatbotTester:
     def get_receipts_count(self) -> Dict[str, Any]:
         """Get current number of receipts"""
         try:
-            response = requests.get(f"{self.base_url}/receipts/count")
+            headers = {}
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
+            response = requests.get(f"{self.base_url}/receipts/count", headers=headers)
             return response.json()
         except Exception as e:
             return {"error": str(e)}

@@ -1,5 +1,5 @@
 """
-Receipt Chatbot Backend - FastAPI Implementation (Gemini + Local JSON)
+Receipt Chatbot Backend - FastAPI Implementation (Gemini + Firebase)
 """
 
 from fastapi import FastAPI, HTTPException
@@ -12,6 +12,8 @@ import os
 from google.cloud import aiplatform
 import vertexai
 from vertexai.generative_models import GenerativeModel
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,23 +49,64 @@ class ReceiptAnalysisService:
             location=os.getenv("GOOGLE_CLOUD_REGION", "us-central1")
         )
         self.gemini = GenerativeModel("gemini-2.5-flash")
+        self.db = self._init_firestore()
         self.receipt_data = self._load_receipt_data()
 
-    def _load_receipt_data(self) -> List[Dict[str, Any]]:
-        """Load receipt data from pipeline_receipt.json"""
+    def list_receipts(self) -> str:
+        """Return a human readable list of all receipts."""
+        if not self.receipt_data:
+            return "No receipts found."
+
+        lines = []
+        for r in self.receipt_data:
+            store = r.get("store_name", "Unknown")
+            category = r.get("receipt_category", "Unknown")
+            total = r.get("total_amount", 0)
+            currency = r.get("currency", "")
+            date = r.get("date", "Unknown")
+            lines.append(f"* {category}: {currency}{total} ({store} - {date})")
+
+        # Calculate total per currency
+        totals = {}
+        for r in self.receipt_data:
+            currency = r.get("currency", "")
+            try:
+                amount = float(r.get("total_amount", 0))
+            except (ValueError, TypeError):
+                amount = 0
+            totals[currency] = totals.get(currency, 0) + amount
+
+        total_str = " + ".join(
+            f"{cur}{amt}" for cur, amt in totals.items()
+        )
+
+        return "\n".join(lines) + f"\n\n📊 **Total:** {total_str} 💰"
+
+    def _init_firestore(self):
+        """Initialize Firebase and return Firestore client."""
         try:
-            with open("pipeline_receipt.json", "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, list):
-                raise ValueError("pipeline_receipt.json must contain a JSON array of receipts.")
-            logger.info(f"Loaded {len(data)} receipts from pipeline_receipt.json.")
+            if not firebase_admin._apps:
+                cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            return firestore.client()
+        except Exception as e:
+            logger.error(f"Failed to initialize Firestore: {e}")
+            raise
+
+    def _load_receipt_data(self) -> List[Dict[str, Any]]:
+        """Load receipt data from Firestore."""
+        try:
+            docs = list(self.db.collection("receipts").stream())
+            data = [doc.to_dict() for doc in docs]
+            logger.info(f"Loaded {len(data)} receipts from Firestore.")
             return data
         except Exception as e:
-            logger.error(f"Failed to load pipeline_receipt.json: {e}")
+            logger.error(f"Failed to load receipts from Firestore: {e}")
             return []
 
     def reload_receipt_data(self):
-        """Reload receipt data from file"""
+        """Reload receipt data from Firestore."""
         self.receipt_data = self._load_receipt_data()
         return len(self.receipt_data)
 
@@ -193,6 +236,18 @@ Be concise and helpful."""
         Main method to process chat query through the full pipeline
         """
         try:
+            query_lower = query.lower()
+
+            # If the user is requesting a list of receipts, handle locally
+            if "receipt" in query_lower and any(k in query_lower for k in ["all", "list", "show"]):
+                summary = self.list_receipts()
+                return {
+                    "response": summary,
+                    "categories_analyzed": [r.get("receipt_category", "Unknown") for r in self.receipt_data],
+                    "receipts_count": len(self.receipt_data),
+                    "timestamp": datetime.now().isoformat(),
+                }
+
             relevant_categories = await self.classify_categories(query)
             context = self._build_context()
             answer = await self.generate_answer(query, context)
@@ -230,7 +285,7 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.post("/reload")
 async def reload_receipts():
-    """Reload receipt data from file"""
+    """Reload receipt data from Firestore"""
     count = analysis_service.reload_receipt_data()
     return {"message": f"Reloaded {count} receipts", "timestamp": datetime.now().isoformat()}
 

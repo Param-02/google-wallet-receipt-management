@@ -81,7 +81,6 @@ class ReceiptAnalysisService:
         data = self._get_receipt_data(user_id)
         if not data:
             return "No receipts found."
-
         lines = []
         for r in data:
             store = r.get("store_name", "Unknown")

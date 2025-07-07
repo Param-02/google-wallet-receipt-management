@@ -7,10 +7,11 @@ An intelligent receipt processing system that extracts structured data from rece
 - **📸 Image Processing**: Converts receipt images to clean PDFs
 - **🤖 AI-Powered Extraction**: Uses Google Vertex AI Gemini to extract structured data
 - **📂 Smart Categorization**: Categorizes both receipts and individual items
-- **💾 Data Accumulation**: Stores each user's receipts in their own Firestore subcollection
+- **💾 Data Accumulation**: Stores each user's account and receipts in Firestore
 - **🤖 Chatbot Interface**: Ask questions about your receipts in natural language
 - **🌐 REST API**: FastAPI-based backend for integration
 - **🛠️ Pipeline Orchestration**: Seamless workflow management
+- **🔑 User registration & login**: Token-based authentication
 
 ## 📋 System Architecture
 
@@ -24,8 +25,9 @@ An intelligent receipt processing system that extracts structured data from rece
 Firebase's Firestore is the central database for all parsed receipts.
 
 1. **`receipt_pipeline.py`** stores each parsed receipt under the user's collection (`users/<user_id>/receipts`).
-2. **`gemini.py`** reads from the current user's subcollection to build context for the LLM and to list receipts.
-3. Documents follow the schema outlined in the [Data Format](#-data-format) section.
+2. **User accounts** are stored in the same `users` collection with a password and creation timestamp.
+3. **`gemini.py`** reads from the current user's subcollection to build context for the LLM and to list receipts.
+4. Documents follow the schema outlined in the [Data Format](#-data-format) section.
 
 Data flow overview:
 
@@ -39,6 +41,8 @@ ReceiptPipeline → Firestore ← Gemini Chatbot
 Firestore
 └── users (collection)
     └── <user_id> (document)
+        ├── password: string
+        ├── created_at: timestamp
         └── receipts (collection)
             ├── <document-id>
             │   ├── store_name: string
@@ -140,6 +144,11 @@ With the chatbot running on `http://localhost:8000`:
 # Health check
 curl http://localhost:8000/health
 
+# Register a user
+curl -X POST http://localhost:8000/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "secret"}'
+
 # Login to obtain a token (token is tied to your user ID)
 curl -X POST http://localhost:8000/login \
   -H "Content-Type: application/json" \
@@ -156,6 +165,12 @@ curl http://localhost:8000/receipts/count
 
 # Reload receipt data
 curl -X POST http://localhost:8000/reload
+
+# Process a new receipt
+curl -X POST http://localhost:8000/process_receipt \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "33.jpg"}'
 ```
 
 ## 📁 File Structure

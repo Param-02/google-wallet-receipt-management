@@ -27,6 +27,17 @@ class ReceiptChatbotTester:
             return False
         except Exception:
             return False
+
+    def register(self, username: str, password: str) -> bool:
+        """Register a new user"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/register",
+                json={"username": username, "password": password},
+            )
+            return response.status_code == 200
+        except Exception:
+            return False
         
     def test_connection(self) -> bool:
         """Test if the chatbot API is running"""
@@ -98,7 +109,8 @@ def main():
 
     print("✅ Connected to chatbot API")
 
-    # Login for auth token
+    # Ensure user exists then login for auth token
+    tester.register("admin", "password")
     if not tester.login():
         print("❌ Login failed - check credentials")
         return

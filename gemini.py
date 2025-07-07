@@ -16,6 +16,7 @@ import vertexai
 from vertexai.generative_models import GenerativeModel
 import firebase_admin
 from firebase_admin import credentials, firestore
+from receipt_pipeline import ReceiptPipeline
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +32,7 @@ EXPENSE_CATEGORIES = [
     "Education", "Maintenance", "Financial", "Others"
 ]
 
-# Simple in-memory user store and token tracking
-USERS = {"admin": "password"}
+# Token tracking (user authentication handled via Firestore)
 TOKENS: Dict[str, str] = {}
 auth_scheme = HTTPBearer()
 
@@ -47,6 +47,16 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     token: str
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+class ProcessReceiptRequest(BaseModel):
+    image_path: str
+
+class ProcessReceiptResponse(BaseModel):
+    receipt: Dict[str, Any]
 
 class ChatResponse(BaseModel):
     response: str
@@ -71,7 +81,6 @@ class ReceiptAnalysisService:
         data = self._get_receipt_data(user_id)
         if not data:
             return "No receipts found."
-
         lines = []
         for r in data:
             store = r.get("store_name", "Unknown")
@@ -305,14 +314,39 @@ Be concise and helpful."""
 analysis_service = ReceiptAnalysisService()
 
 
+def _user_doc(username: str):
+    """Return Firestore document reference for a user."""
+    return analysis_service.db.collection("users").document(username)
+
+
+@app.post("/register")
+async def register(request: RegisterRequest):
+    """Register a new user in Firestore."""
+    doc_ref = _user_doc(request.username)
+    doc = doc_ref.get()
+    if doc.exists and doc.to_dict().get("password"):
+        raise HTTPException(status_code=400, detail="User already exists")
+    try:
+        doc_ref.set({"password": request.password, "created_at": datetime.now().isoformat()})
+        return {"message": "User registered"}
+    except Exception as e:
+        logger.error(f"Failed to register user {request.username}: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+
 @app.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
-    """Authenticate user and return token."""
-    if USERS.get(request.username) == request.password:
-        token = str(uuid.uuid4())
-        TOKENS[token] = request.username
-        return LoginResponse(token=token)
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+    """Authenticate user via Firestore and return token."""
+    doc = _user_doc(request.username).get()
+    if not doc.exists:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    data = doc.to_dict()
+    if data.get("password") != request.password:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = str(uuid.uuid4())
+    TOKENS[token] = request.username
+    return LoginResponse(token=token)
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -334,6 +368,24 @@ async def chat_endpoint(
         f"Processing chat query for {user_id}: {request.query}")
     result = await analysis_service.process_chat_query(request.query, user_id)
     return ChatResponse(**result)
+
+
+@app.post("/process_receipt", response_model=ProcessReceiptResponse)
+async def process_receipt_endpoint(
+    request: ProcessReceiptRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+):
+    """Process a receipt image for the authenticated user."""
+    token = credentials.credentials
+    if token not in TOKENS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user_id = TOKENS[token]
+    pipeline = ReceiptPipeline(user_id=user_id)
+    result = pipeline.process_receipt(request.image_path)
+    if not result:
+        raise HTTPException(status_code=500, detail="Receipt processing failed")
+    analysis_service.reload_receipt_data(user_id)
+    return ProcessReceiptResponse(receipt=result)
 
 @app.post("/reload")
 async def reload_receipts(

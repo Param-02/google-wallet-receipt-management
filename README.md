@@ -7,16 +7,55 @@ An intelligent receipt processing system that extracts structured data from rece
 - **📸 Image Processing**: Converts receipt images to clean PDFs
 - **🤖 AI-Powered Extraction**: Uses Google Vertex AI Gemini to extract structured data
 - **📂 Smart Categorization**: Categorizes both receipts and individual items
-- **💾 Data Accumulation**: Stores all receipts in a single JSON file
+- **💾 Data Accumulation**: Stores each user's account and receipts in Firestore
 - **🤖 Chatbot Interface**: Ask questions about your receipts in natural language
 - **🌐 REST API**: FastAPI-based backend for integration
 - **🛠️ Pipeline Orchestration**: Seamless workflow management
+- **🔑 User registration & login**: Token-based authentication
 
 ## 📋 System Architecture
 
 ```
-📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 📄 JSON Storage → 💬 Chatbot
-     (main2.py)      (receipt_pipeline.py)   (ai.py)     (pipeline_receipt.json)  (gemini.py)
+📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 🔥 Firestore Storage → 💬 Chatbot
+     (main2.py)      (receipt_pipeline.py)   (ai.py)     (Firestore)  (gemini.py)
+```
+
+## 🔥 Firebase / Firestore Integration
+
+Firebase's Firestore is the central database for all parsed receipts.
+
+1. **`receipt_pipeline.py`** stores each parsed receipt under the user's collection (`users/<user_id>/receipts`).
+2. **User accounts** are stored in the same `users` collection with a password and creation timestamp.
+3. **`gemini.py`** reads from the current user's subcollection to build context for the LLM and to list receipts.
+4. Documents follow the schema outlined in the [Data Format](#-data-format) section.
+
+Data flow overview:
+
+```text
+ReceiptPipeline → Firestore ← Gemini Chatbot
+```
+
+### Firestore Structure
+
+```text
+Firestore
+└── users (collection)
+    └── <user_id> (document)
+        ├── password: string
+        ├── created_at: timestamp
+        └── receipts (collection)
+            ├── <document-id>
+            │   ├── store_name: string
+            │   ├── store_address: string
+            │   ├── date: YYYY-MM-DD
+            │   ├── time: HH:MM
+            │   ├── receipt_category: string
+            │   ├── total_amount: string
+            │   ├── currency: string
+            │   ├── items: [ ... ]
+            │   ├── processed_at: timestamp
+            │   └── source_image: string
+            └── ...
 ```
 
 ## 🛠️ Installation
@@ -66,11 +105,11 @@ An intelligent receipt processing system that extracts structured data from rece
 
 **Using Python directly:**
 ```bash
-# Process receipt
-python3 receipt_pipeline.py --input 33.jpg
+# Process receipt for a specific user
+python3 receipt_pipeline.py --input 33.jpg --user-id alice
 
-# View all receipts
-python3 receipt_pipeline.py --show-all
+# View all receipts for that user
+python3 receipt_pipeline.py --show-all --user-id alice
 ```
 
 ### 2. Start the Chatbot
@@ -105,8 +144,19 @@ With the chatbot running on `http://localhost:8000`:
 # Health check
 curl http://localhost:8000/health
 
+# Register a user
+curl -X POST http://localhost:8000/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "secret"}'
+
+# Login to obtain a token (token is tied to your user ID)
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password"}'
+
 # Ask a question
 curl -X POST http://localhost:8000/chat \
+  -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"query": "How much did I spend on groceries?"}'
 
@@ -115,6 +165,12 @@ curl http://localhost:8000/receipts/count
 
 # Reload receipt data
 curl -X POST http://localhost:8000/reload
+
+# Process a new receipt
+curl -X POST http://localhost:8000/process_receipt \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"image_path": "33.jpg"}'
 ```
 
 ## 📁 File Structure
@@ -130,7 +186,7 @@ curl -X POST http://localhost:8000/reload
 ├── 🚀 process_receipt.sh          # Convenience script
 ├── 📋 requirements.txt            # Dependencies
 ├── 🔑 splendid-yeti-464913-j2...json  # Google Cloud credentials
-└── 📄 pipeline_receipt.json      # Accumulated receipt data
+└── 🔥 Firestore collection      # Accumulated receipt data
 ```
 
 ### Sample Data

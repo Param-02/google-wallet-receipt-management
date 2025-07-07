@@ -11,6 +11,8 @@ import logging
 import argparse
 from pathlib import Path
 import json
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Configure logging
 logging.basicConfig(
@@ -21,10 +23,24 @@ logger = logging.getLogger(__name__)
 
 class ReceiptPipeline:
     """Pipeline that combines main2.py and ai.py for complete receipt processing."""
-    
-    def __init__(self):
-        """Initialize the pipeline."""
+
+    def __init__(self, user_id: str = "default_user"):
+        """Initialize the pipeline and Firestore for a given user."""
+        self.user_id = user_id
         self.check_dependencies()
+        self.db = self._init_firestore()
+
+    def _init_firestore(self):
+        """Initialize Firebase and return Firestore client."""
+        try:
+            if not firebase_admin._apps:
+                cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            return firestore.client()
+        except Exception as e:
+            logger.error(f"Failed to initialize Firestore: {e}")
+            raise
     
     def check_dependencies(self):
         """Check if required scripts exist."""
@@ -115,9 +131,9 @@ class ReceiptPipeline:
             logger.error(f"Error running AI parsing: {str(e)}")
             return False
     
-    def process_receipt(self, input_image, output_json='pipeline_receipt.json', 
+    def process_receipt(self, input_image, output_json='pipeline_receipt.json',
                        temp_pdf='temp_pipeline.pdf', debug=False, keep_pdf=False):
-        """Run the complete pipeline: image → PDF → JSON."""
+        """Run the complete pipeline and store results in Firestore."""
         try:
             logger.info("🚀 Starting Receipt Processing Pipeline")
             logger.info(f"Input: {input_image}")
@@ -151,31 +167,17 @@ class ReceiptPipeline:
                 new_result['processed_at'] = datetime.datetime.now().isoformat()
                 new_result['source_image'] = input_image
                 
-                # Load existing results if file exists
-                all_results = []
-                if Path(output_json).exists():
-                    try:
-                        with open(output_json, 'r', encoding='utf-8') as f:
-                            existing_data = json.load(f)
-                            # Handle both single object and array formats
-                            if isinstance(existing_data, list):
-                                all_results = existing_data
-                            else:
-                                all_results = [existing_data]
-                        logger.info(f"Found {len(all_results)} existing receipt(s)")
-                    except Exception as e:
-                        logger.warning(f"Could not load existing results: {e}")
-                        all_results = []
-                
-                # Add new result to the collection
-                all_results.append(new_result)
-                
-                # Save combined results
-                with open(output_json, 'w', encoding='utf-8') as f:
-                    json.dump(all_results, f, separators=(',', ':'), ensure_ascii=False, indent=2)
-                
-                logger.info("✅ Pipeline completed successfully!")
-                logger.info(f"📊 Total receipts in file: {len(all_results)}")
+                # Store result in Firestore under the user's collection
+                collection = (
+                    self.db.collection("users")
+                    .document(self.user_id)
+                    .collection("receipts")
+                )
+                doc_ref = collection.add(new_result)
+                logger.info(
+                    "✅ Pipeline completed successfully! Stored in Firestore "
+                    f"for user {self.user_id} with ID: {doc_ref[1].id}"
+                )
                 
                 # Clean up temporary files
                 try:
@@ -255,30 +257,29 @@ class ReceiptPipeline:
         
         print("="*50)
     
-    def print_all_results(self, json_file):
-        """Print all results from the JSON file."""
-        if not Path(json_file).exists():
-            print("❌ No results file found")
-            return
-        
+    def print_all_results(self):
+        """Print all results stored in Firestore."""
         try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            if isinstance(data, list):
-                print(f"\n📊 SHOWING ALL {len(data)} RECEIPTS")
-                print("="*60)
-                for i, receipt in enumerate(data, 1):
-                    print(f"\n🧾 RECEIPT #{i}")
-                    print("-" * 30)
-                    self.print_receipt_summary(receipt)
-                print("="*60)
-            else:
-                print("\n📊 SHOWING 1 RECEIPT")
-                self.print_results(data)
-                
+            collection = (
+                self.db.collection("users")
+                .document(self.user_id)
+                .collection("receipts")
+            )
+            docs = list(collection.stream())
+            if not docs:
+                print("❌ No receipts found in Firestore")
+                return
+
+            print(f"\n📊 SHOWING ALL {len(docs)} RECEIPTS")
+            print("="*60)
+            for i, doc in enumerate(docs, 1):
+                print(f"\n🧾 RECEIPT #{i}")
+                print("-" * 30)
+                self.print_receipt_summary(doc.to_dict())
+            print("="*60)
+
         except Exception as e:
-            print(f"❌ Error reading results: {e}")
+            print(f"❌ Error reading results from Firestore: {e}")
     
     def print_receipt_summary(self, receipt):
         """Print a summary of a single receipt."""
@@ -302,7 +303,8 @@ def main():
     """Main function."""
     parser = argparse.ArgumentParser(description='Receipt Processing Pipeline')
     parser.add_argument('--input', help='Input image path')
-    parser.add_argument('--output', default='pipeline_receipt.json', help='Output JSON path')
+    parser.add_argument('--user-id', default='default_user', help='User ID for Firestore storage')
+    parser.add_argument('--output', default='pipeline_receipt.json', help='(deprecated) Output JSON path')
     parser.add_argument('--keep-pdf', action='store_true', help='Keep temporary PDF file')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--show-all', action='store_true', help='Show all stored receipts')
@@ -310,11 +312,11 @@ def main():
     args = parser.parse_args()
     
     # Initialize pipeline
-    pipeline = ReceiptPipeline()
+    pipeline = ReceiptPipeline(user_id=args.user_id)
     
     # Show all results if requested
     if args.show_all:
-        pipeline.print_all_results(args.output)
+        pipeline.print_all_results()
         return
     
     # Validate input for processing
@@ -336,7 +338,6 @@ def main():
         
         if result:
             pipeline.print_results(result)
-            print(f"\n📁 Results saved to: {args.output}")
         else:
             logger.error("Pipeline failed")
             sys.exit(1)

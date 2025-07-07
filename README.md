@@ -140,8 +140,14 @@ With the chatbot running on `http://localhost:8000`:
 # Health check
 curl http://localhost:8000/health
 
+# Login to obtain a token
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "password"}'
+
 # Ask a question
 curl -X POST http://localhost:8000/chat \
+  -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"query": "How much did I spend on groceries?"}'
 

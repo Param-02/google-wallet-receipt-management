@@ -2,13 +2,15 @@
 Receipt Chatbot Backend - FastAPI Implementation (Gemini + Firebase)
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import json
 import logging
 from datetime import datetime
 import os
+import uuid
 from google.cloud import aiplatform
 import vertexai
 from vertexai.generative_models import GenerativeModel
@@ -29,10 +31,22 @@ EXPENSE_CATEGORIES = [
     "Education", "Maintenance", "Financial", "Others"
 ]
 
+# Simple in-memory user store and token tracking
+USERS = {"admin": "password"}
+TOKENS: Dict[str, str] = {}
+auth_scheme = HTTPBearer()
+
 # Pydantic models
 class ChatRequest(BaseModel):
     query: str
     user_id: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginResponse(BaseModel):
+    token: str
 
 class ChatResponse(BaseModel):
     response: str
@@ -272,15 +286,32 @@ Be concise and helpful."""
 # Initialize the service
 analysis_service = ReceiptAnalysisService()
 
+
+@app.post("/login", response_model=LoginResponse)
+async def login(request: LoginRequest):
+    """Authenticate user and return token."""
+    if USERS.get(request.username) == request.password:
+        token = str(uuid.uuid4())
+        TOKENS[token] = request.username
+        return LoginResponse(token=token)
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
 @app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    """
-    Main chat endpoint for receipt analysis queries
-    """
+async def chat_endpoint(
+    request: ChatRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+):
+    """Main chat endpoint for receipt analysis queries."""
+    token = credentials.credentials
+    if token not in TOKENS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-    logger.info(f"Processing chat query: {request.query}")
+    logger.info(
+        f"Processing chat query for {TOKENS[token]}: {request.query}")
     result = await analysis_service.process_chat_query(request.query)
     return ChatResponse(**result)
 

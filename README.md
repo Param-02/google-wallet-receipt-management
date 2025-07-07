@@ -17,6 +17,7 @@ An intelligent receipt processing system that extracts structured data from rece
 ```
 📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 🔥 Firestore Storage → 💬 Chatbot
      (main2.py)      (receipt_pipeline.py)   (ai.py)     (Firestore)  (gemini.py)
+
 ```
 
 ## 🔥 Firebase / Firestore Integration
@@ -50,6 +51,7 @@ Firestore
     │   ├── processed_at: timestamp
     │   └── source_image: string
     └── ...
+
 ```
 
 ## 🛠️ Installation

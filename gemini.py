@@ -96,6 +96,7 @@ class ReceiptAnalysisService:
 
         return "\n".join(lines) + f"\n\n📊 **Total:** {total_str} 💰"
 
+
     def _init_firestore(self):
         """Initialize Firebase and return Firestore client."""
         try:

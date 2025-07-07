@@ -17,6 +17,41 @@ An intelligent receipt processing system that extracts structured data from rece
 ```
 📸 Receipt Image → 🔄 Image Processing → 🤖 AI Parsing → 🔥 Firestore Storage → 💬 Chatbot
      (main2.py)      (receipt_pipeline.py)   (ai.py)     (Firestore)  (gemini.py)
+
+```
+
+## 🔥 Firebase / Firestore Integration
+
+Firebase's Firestore is the central database for all parsed receipts.
+
+1. **`receipt_pipeline.py`** stores each parsed receipt as a document in the `receipts` collection.
+2. **`gemini.py`** reads from this collection to build context for the LLM and to list receipts.
+3. Documents follow the schema outlined in the [Data Format](#-data-format) section.
+
+Data flow overview:
+
+```text
+ReceiptPipeline → Firestore ← Gemini Chatbot
+```
+
+### Firestore Structure
+
+```text
+Firestore
+└── receipts (collection)
+    ├── <document-id>
+    │   ├── store_name: string
+    │   ├── store_address: string
+    │   ├── date: YYYY-MM-DD
+    │   ├── time: HH:MM
+    │   ├── receipt_category: string
+    │   ├── total_amount: string
+    │   ├── currency: string
+    │   ├── items: [ ... ]
+    │   ├── processed_at: timestamp
+    │   └── source_image: string
+    └── ...
+
 ```
 
 ## 🛠️ Installation

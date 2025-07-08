@@ -340,6 +340,7 @@ async def register(request: RegisterRequest):
     doc = doc_ref.get()
     if doc.exists and doc.to_dict().get("password"):
         raise HTTPException(status_code=400, detail="User already exists")
+    try:
         pwd_hash, salt = _hash_password(request.password)
         doc_ref.set({
             "password": pwd_hash,
